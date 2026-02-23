@@ -45,7 +45,25 @@ class SGR {
     const world = local.map(v =>
       mp.game.entity.getOffsetFromInWorldCoords(obj.handle, v.x, v.y, v.z)
     );
+    const d_bottom = world
+        .map((p, d_i) => ({ p, d_i }))
+        .sort((a, b) => a.p.z - b.p.z)
+        .slice(0, 4);
 
+    for (const { p } of d_bottom) {
+        const d_ground_z = mp.game.gameplay.getGroundZFor3dCoord(
+            p.x, p.y, p.z,
+            false, false
+        );
+
+        if (d_ground_z !== 0) {
+            mp.game.graphics.drawLine(
+                p.x, p.y, p.z,
+                p.x, p.y, d_ground_z,
+                0, 255, 0, 255
+            );
+        }
+    }
     for (const [a, b] of EDGES) {
       const p1 = world[a];
       const p2 = world[b];
@@ -64,17 +82,8 @@ const sgr = new SGR();
 mp.events.add("render", () => {
   if (!dev) return;
 
-  const me = mp.players.local;
-  const p = me.position;
-  const maxDist = 80;
-
   mp.objects.forEach(obj => {
-    const op = obj.position;
-    const dx = op.x - p.x;
-    const dy = op.y - p.y;
-    const dz = op.z - p.z;
-    if (Math.sqrt(dx * dx + dy * dy + dz * dz) > maxDist) return;
-
+    obj.rotation = new mp.Vector3(90, 0, 0);
     sgr.box(obj);
   });
 });
