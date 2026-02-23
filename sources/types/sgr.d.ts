@@ -1,0 +1,1 @@
+type d_model = { min: Vector3; max: Vector3 };
