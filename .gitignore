@@ -17,4 +17,6 @@
 /sources/esbuild.config.js
 /sources/tsconfig.json
 /sources/src/server/
+/package.json
+/sources/package.json
 /sources/src/client/index.ts
