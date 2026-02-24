@@ -57,18 +57,32 @@ namespace sgr {
 
     const start = new mp.Vector3(x, y, z_at_point + up);
     const end = new mp.Vector3(x, y, z_at_point - down);
-
     const hit: any = (mp as any).raycasting?.testPointToPoint
       ? (mp as any).raycasting.testPointToPoint(start, end, ignoreEntity ?? 0, sgr_settings.cfg.ray.flags)
       : null;
 
-    if (!hit || !hit.position) return null;
+    if (!hit || !hit.position) {
+      release_entity_guid(hit?.entity);
+      return null;
+    }
 
     const z = hit.position.z;
-    if (!isFinite(z)) return null;
+    if (!isFinite(z)) {
+      release_entity_guid(hit.entity);
+      return null;
+    }
 
     const n = hit.normal ? sgr_math.v3(hit.normal.x, hit.normal.y, hit.normal.z) : undefined;
+    release_entity_guid(hit.entity);
     return { z, n };
+  }
+
+  // releases internal rage::fwScriptGuid potentially created by mp.raycasting.testPointToPoint
+  // thanks to equatorium for hint
+  function release_entity_guid(entity: any): void {
+    if (!entity) return;
+    if (typeof entity === "object" && entity.handle) mp.game.shapetest.releaseScriptGuidFromEntity(entity.handle);
+    else if (typeof entity === "number") mp.game.shapetest.releaseScriptGuidFromEntity(entity);
   }
 
   // resolves ground height using raycast with fallback to native groundZ
@@ -187,6 +201,7 @@ namespace sgr {
         if (hit?.position) {
           mp.game.graphics.drawLine(p.x, p.y, p.z, hit.position.x, hit.position.y, hit.position.z, 0, 255, 0, 255);
         }
+        release_entity_guid(hit?.entity);
       }
     }
 
