@@ -1,6 +1,6 @@
 namespace sgr_settings {
   export const cfg = {
-    debug: {
+    debug: { // work only in render
         lines: false, // draws raycast debug lines (sampling rays and hit positions)
         box: true    // draws bounding box wireframe for visualization
     },
