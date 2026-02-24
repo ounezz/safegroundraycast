@@ -1,41 +1,32 @@
 namespace sgr_math {
-    export const v3 = (x: number = 0, y: number = 0, z: number = 0): vec3 => ({ x, y, z });
 
+    export const v3 = (x = 0, y = 0, z = 0): vec3 => ({ x, y, z });
+    export const add3 = (a: vec3, b: vec3): vec3 => v3(a.x + b.x, a.y + b.y, a.z + b.z);
     export const sub3 = (a: vec3, b: vec3): vec3 => v3(a.x - b.x, a.y - b.y, a.z - b.z);
     export const mul3 = (a: vec3, s: number): vec3 => v3(a.x * s, a.y * s, a.z * s);
     export const dot3 = (a: vec3, b: vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
-
     export const cross3 = (a: vec3, b: vec3): vec3 =>
-    v3(
-        a.y * b.z - a.z * b.y,
-        a.z * b.x - a.x * b.z,
-        a.x * b.y - a.y * b.x
-    );
-
+        v3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
     export const len3 = (a: vec3): number => Math.sqrt(dot3(a, a));
-
     export const norm3 = (a: vec3): vec3 => {
         const l = len3(a);
         return l > 1e-8 ? mul3(a, 1 / l) : v3(0, 0, 1);
     };
-
     export const deg2rad = (d: number): number => (d * Math.PI) / 180;
 
-    export const quat_make = (x: number = 0, y: number = 0, z: number = 0, w: number = 1): quat => ({ x, y, z, w });
-
+    export const quat_make = (x = 0, y = 0, z = 0, w = 1): quat => ({ x, y, z, w });
     export const quat_norm = (q: quat): quat => {
         const l = Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w) || 1;
         return { x: q.x / l, y: q.y / l, z: q.z / l, w: q.w / l };
     };
-
     // q = a*b => сначала b, потом a
     export const quat_mul = (a: quat, b: quat): quat =>
-    quat_make(
-        a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
-        a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
-        a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
-        a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
-    );
+        quat_make(
+            a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+            a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+            a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+            a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+        );
 
     export const quat_axis_angle = (axis: vec3, deg: number): quat => {
         const ang = deg2rad(deg) * 0.5;
@@ -81,8 +72,8 @@ namespace sgr_math {
         return quat_norm({ x, y, z, w });
     };
 
-    export const fit_plane_normal = (pts: readonly vec3[] | null | undefined): vec3 | null => {
-        if (!pts || pts.length < 3) return null;
+    export const fit_plane_normal = (pts: vec3[]): vec3 | null => {
+        if (pts.length < 3) return null;
 
         let sxx = 0, sxy = 0, sx = 0;
         let syy = 0, sy = 0;
@@ -96,7 +87,7 @@ namespace sgr_math {
             syy += p.y * p.y;
             sy += p.y;
             sxz += p.x * p.z;
-            syz += p.x * p.z;
+            syz += p.y * p.z;
             sz += p.z;
         }
 
@@ -128,5 +119,6 @@ namespace sgr_math {
 
         return norm3(v3(-aa, -bb, 1));
     };
+
 }
 global.sgr_math = sgr_math
