@@ -1,7 +1,10 @@
 namespace sgr {
+  // caches model bounding box dimensions to avoid repeated native calls
   const dims_cache = new Map<number, model_dims>();
+  // stores already aligned object handles to prevent redundant processing
   const aligned = new Set<number>();
 
+  // retrieves and caches model bounding box dimensions
   function get_dims(model: number): model_dims {
     const cached = dims_cache.get(model);
     if (cached) return cached;
@@ -16,6 +19,7 @@ namespace sgr {
     return dims;
   }
 
+  // builds 8 local-space bounding box corners from min/max extents
   function local_corners(min: Vector3, max: Vector3): Vector3[] {
     return [
       new mp.Vector3(min.x, min.y, min.z),
@@ -29,6 +33,7 @@ namespace sgr {
     ];
   }
 
+  // converts local bounding box corners into world-space positions
   function world_corners(obj: ObjectMp): Vector3[] {
     const { min, max } = get_dims(obj.model);
     return local_corners(min, max).map(v =>
@@ -36,6 +41,7 @@ namespace sgr {
     );
   }
 
+  // returns indices of the 4 lowest world-space corners
   function bottom_idx(corners: Vector3[]): number[] {
     return corners
       .map((p, i) => ({ p, i }))
@@ -44,6 +50,7 @@ namespace sgr {
       .map(v => v.i);
   }
 
+  // performs downward raycast to detect supporting surface under a point
   function raycast_ground(x: number,y: number,z_at_point: number,ignoreEntity?: number): ray_hit | null {
     const up = sgr_settings.cfg.ray.up;
     const down = sgr_settings.cfg.ray.down;
@@ -64,6 +71,7 @@ namespace sgr {
     return { z, n };
   }
 
+  // resolves ground height using raycast with fallback to native groundZ
   function ground_z(x: number, y: number, z_hint: number, ignoreEntity?: number): number | null {
     const hit = raycast_ground(x, y, z_hint, ignoreEntity);
     if (hit) return hit.z;
@@ -73,6 +81,7 @@ namespace sgr {
     return z;
   }
 
+  // builds quaternion aligned to surface normal while preserving original yaw
   function quat_keep_yaw(yaw_deg: number, up: vec3): quat {
     const yaw = sgr_math.deg2rad(yaw_deg);
     const f0 = sgr_math.v3(Math.cos(yaw), Math.sin(yaw), 0);
@@ -89,6 +98,7 @@ namespace sgr {
     return sgr_math.mat3_to_quat(r, f2, up);
   }
 
+  // adjusts object vertical position to sit flush on detected surface
   function settle_z(obj: ObjectMp): void {
     const eps = sgr_settings.cfg.eps;
     const corners = world_corners(obj);
@@ -117,6 +127,7 @@ namespace sgr {
     }
   }
 
+  // iteratively aligns object to supporting surface using plane fitting
   function align(obj: ObjectMp, iters: number, lay_on_side: boolean): void {
     const yaw0 = obj.rotation.z;
     const q_side = lay_on_side ? sgr_math.quat_axis_angle(sgr_math.v3(1, 0, 0), 90) : sgr_math.quat_make();
@@ -145,42 +156,50 @@ namespace sgr {
     }
   }
 
+  // renders debug visualization for bbox and raycast sampling
   function debug_box(obj: ObjectMp): void {
-    if (!sgr_settings.cfg.debug) return;
+    const dbg = sgr_settings.cfg.debug;
+    if (!dbg.lines && !dbg.box) return;
+
     if (!mp.objects.exists(obj) || !obj.handle) return;
 
     const corners = world_corners(obj);
 
-    const bottom = corners
-      .map((p, i) => ({ p, i }))
-      .sort((a, b) => a.p.z - b.p.z)
-      .slice(0, 4);
+    if (dbg.lines) {
+      const bottom = corners
+        .map((p, i) => ({ p, i }))
+        .sort((a, b) => a.p.z - b.p.z)
+        .slice(0, 4);
 
-    for (const { p } of bottom) {
-      const up = sgr_settings.cfg.ray.up;
-      const down = sgr_settings.cfg.ray.down;
+      for (const { p } of bottom) {
+        const up = sgr_settings.cfg.ray.up;
+        const down = sgr_settings.cfg.ray.down;
 
-      const start = new mp.Vector3(p.x, p.y, p.z + up);
-      const end = new mp.Vector3(p.x, p.y, p.z - down);
+        const start = new mp.Vector3(p.x, p.y, p.z + up);
+        const end = new mp.Vector3(p.x, p.y, p.z - down);
 
-      const hit: any = (mp as any).raycasting?.testPointToPoint
-        ? (mp as any).raycasting.testPointToPoint(start, end, obj.handle, sgr_settings.cfg.ray.flags)
-        : null;
+        const hit: any = (mp as any).raycasting?.testPointToPoint
+          ? (mp as any).raycasting.testPointToPoint(start, end, obj.handle, sgr_settings.cfg.ray.flags)
+          : null;
 
-      mp.game.graphics.drawLine(start.x, start.y, start.z, end.x, end.y, end.z, 0, 128, 255, 180);
+        mp.game.graphics.drawLine(start.x, start.y, start.z, end.x, end.y, end.z, 0, 128, 255, 180);
 
-      if (hit?.position) {
-        mp.game.graphics.drawLine(p.x, p.y, p.z, hit.position.x, hit.position.y, hit.position.z, 0, 255, 0, 255);
+        if (hit?.position) {
+          mp.game.graphics.drawLine(p.x, p.y, p.z, hit.position.x, hit.position.y, hit.position.z, 0, 255, 0, 255);
+        }
       }
     }
 
-    for (const [a, b] of sgr_settings.edges) {
-      const p1 = corners[a];
-      const p2 = corners[b];
-      mp.game.graphics.drawLine(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, 255, 0, 0, 255);
+    if (dbg.box) {
+      for (const [a, b] of sgr_settings.edges) {
+        const p1 = corners[a];
+        const p2 = corners[b];
+        mp.game.graphics.drawLine(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, 255, 0, 0, 255);
+      }
     }
   }
 
+  // public entry point that applies surface grounding once per object
   export function apply(obj: ObjectMp, lay_on_side = sgr_settings.cfg.lay_on_side, iters = sgr_settings.cfg.iters): void {
     if (!mp.objects.exists(obj) || !obj.handle) return;
     if (aligned.has(obj.handle)) {

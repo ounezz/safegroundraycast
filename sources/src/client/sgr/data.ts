@@ -1,15 +1,18 @@
 namespace sgr_settings {
   export const cfg = {
-    debug: true,
-    iters: 4,
-    lay_on_side: true,
-    eps: 0.01,
-    z_hint: 200.0,
-    min_samples: 4,
+    debug: {
+        lines: false, // draws raycast debug lines (sampling rays and hit positions)
+        box: true    // draws bounding box wireframe for visualization
+    },
+    iters: 5, // number of alignment iterations for stabilizing rotation/position
+    lay_on_side: true, // applies additional rotation to place object on its side
+    eps: 0, // small vertical offset to prevent clipping into surface (set to -0.05 if you want the object to sit directly on the ground)
+    z_hint: 200.0, // initial height hint used for downward ground detection
+    min_samples: 4, // minimum raycast samples required to fit support plane
     ray: {
-        up: 1.0,
-        down: 5.0,
-        flags: 1
+        up: 1.0, // raycast start offset above sample point
+        down: 5.0, // raycast length downward to search for supporting surface
+        flags: 1 // raycast collision mask (defines which surfaces can be hit)
     }
   } as const;
 

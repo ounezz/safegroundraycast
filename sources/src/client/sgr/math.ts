@@ -1,24 +1,45 @@
 namespace sgr_math {
-
+    // creates a 3d vector
     export const v3 = (x = 0, y = 0, z = 0): vec3 => ({ x, y, z });
+
+    // adds two vectors
     export const add3 = (a: vec3, b: vec3): vec3 => v3(a.x + b.x, a.y + b.y, a.z + b.z);
+
+    // subtracts vector b from vector a
     export const sub3 = (a: vec3, b: vec3): vec3 => v3(a.x - b.x, a.y - b.y, a.z - b.z);
+
+    // multiplies vector by scalar
     export const mul3 = (a: vec3, s: number): vec3 => v3(a.x * s, a.y * s, a.z * s);
+
+    // calculates dot product between two vectors
     export const dot3 = (a: vec3, b: vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+
+    // calculates cross product between two vectors
     export const cross3 = (a: vec3, b: vec3): vec3 =>
         v3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+
+    // returns vector length (magnitude)
     export const len3 = (a: vec3): number => Math.sqrt(dot3(a, a));
+
+    // normalizes vector to unit length with fallback up vector
     export const norm3 = (a: vec3): vec3 => {
         const l = len3(a);
         return l > 1e-8 ? mul3(a, 1 / l) : v3(0, 0, 1);
     };
+
+    // converts degrees to radians
     export const deg2rad = (d: number): number => (d * Math.PI) / 180;
 
+    // creates quaternion
     export const quat_make = (x = 0, y = 0, z = 0, w = 1): quat => ({ x, y, z, w });
+
+    // normalizes quaternion
     export const quat_norm = (q: quat): quat => {
         const l = Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w) || 1;
         return { x: q.x / l, y: q.y / l, z: q.z / l, w: q.w / l };
     };
+
+    // multiplies two quaternions
     export const quat_mul = (a: quat, b: quat): quat =>
         quat_make(
             a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
@@ -27,6 +48,7 @@ namespace sgr_math {
             a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
         );
 
+    // builds quaternion from axis-angle rotation
     export const quat_axis_angle = (axis: vec3, deg: number): quat => {
         const ang = deg2rad(deg) * 0.5;
         const s = Math.sin(ang);
@@ -34,6 +56,7 @@ namespace sgr_math {
         return quat_norm({ x: a.x * s, y: a.y * s, z: a.z * s, w: Math.cos(ang) });
     };
 
+    // converts orthonormal basis (right, forward, up) into quaternion
     export const mat3_to_quat = (r: vec3, f: vec3, u: vec3): quat => {
         const m00 = r.x, m01 = f.x, m02 = u.x;
         const m10 = r.y, m11 = f.y, m12 = u.y;
@@ -70,7 +93,8 @@ namespace sgr_math {
 
         return quat_norm({ x, y, z, w });
     };
-
+    
+    // fits plane from points using least squares and returns normalized surface normal
     export const fit_plane_normal = (pts: vec3[]): vec3 | null => {
         if (pts.length < 3) return null;
 
