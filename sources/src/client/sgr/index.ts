@@ -66,7 +66,7 @@ namespace sgr {
   }
 
   function settle_z(obj: ObjectMp): void {
-    const eps = 0.01;
+    const eps = sgr_settings.cfg.eps;
     const corners = world_corners(obj);
     const idx = bottom_idx(corners);
 
@@ -75,7 +75,7 @@ namespace sgr {
 
     for (const i of idx) {
       const p = corners[i];
-      const gz = ground_z(p.x, p.y, p.z + 200.0);
+      const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint);
       if (gz == null) continue;
       const d = gz - p.z;
       if (d > max_d) max_d = d;
@@ -85,8 +85,8 @@ namespace sgr {
     if (!isFinite(max_d) || !isFinite(min_d)) return;
 
     let dz = 0;
-    if (max_d > 0) dz = max_d + eps;        // провалился
-    else if (min_d < -eps) dz = min_d + eps; // висит
+    if (max_d > 0) dz = max_d + eps;        
+    else if (min_d < -eps) dz = min_d + eps; 
 
     if (dz !== 0) {
       obj.position = new mp.Vector3(obj.position.x, obj.position.y, obj.position.z + dz);
@@ -103,11 +103,11 @@ namespace sgr {
       const samples: vec3[] = [];
       for (const i of idx) {
         const p = corners[i];
-        const gz = ground_z(p.x, p.y, p.z + 200.0);
+        const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint);
         if (gz == null) continue;
         samples.push(sgr_math.v3(p.x, p.y, gz));
       }
-      if (samples.length < 3) return;
+      if (samples.length < sgr_settings.cfg.min_samples) return;
 
       const n = sgr_math.fit_plane_normal(samples);
       if (!n) return;
@@ -123,7 +123,7 @@ namespace sgr {
   }
 
   function debug_box(obj: ObjectMp): void {
-    if (!sgr_settings.cfg) return;
+    if (!sgr_settings.cfg.debug) return;
     if (!mp.objects.exists(obj) || !obj.handle) return;
 
     const corners = world_corners(obj);
@@ -145,7 +145,7 @@ namespace sgr {
     }
   }
 
-  export function apply_once(obj: ObjectMp, lay_on_side = true, iters = 3): void {
+  export function apply(obj: ObjectMp, lay_on_side = sgr_settings.cfg.lay_on_side, iters = sgr_settings.cfg.iters): void {
     if (!mp.objects.exists(obj) || !obj.handle) return;
     if (aligned.has(obj.handle)) {
       debug_box(obj);
