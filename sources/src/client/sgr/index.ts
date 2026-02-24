@@ -78,7 +78,6 @@ namespace sgr {
   }
 
   // releases internal rage::fwScriptGuid potentially created by mp.raycasting.testPointToPoint
-  // thanks to equatorium for hint
   function release_entity_guid(entity: any): void {
     if (!entity) return;
     if (typeof entity === "object" && entity.handle) mp.game.shapetest.releaseScriptGuidFromEntity(entity.handle);
