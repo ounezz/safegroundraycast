@@ -20,3 +20,4 @@
 /package.json
 /sources/package.json
 /sources/src/client/index.ts
+/sources/types/global.d.ts

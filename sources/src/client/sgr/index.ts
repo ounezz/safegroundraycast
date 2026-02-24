@@ -1,37 +1,36 @@
-const dev = true;
+namespace sgr {
+  let dims_cache = new Map<number, model_dims>();
+  const debug_handles = new Set<number>();
 
-const EDGES: Array<[number, number]> = [
-  [0, 1], [1, 3], [3, 2], [2, 0],
-  [4, 5], [5, 7], [7, 6], [6, 4],
-  [0, 4], [1, 5], [2, 6], [3, 7],
-];
+  mp.events.add("render", () => {
+    if (!sgr_settings.cfg.debug) return;
 
-class SGR {
-  private d_cache = new Map<number, d_model>();
+    for (const h of Array.from(debug_handles)) {
+      const obj = mp.objects.atHandle(h);
+      if (!obj || !mp.objects.exists(obj) || !obj.handle) {
+        debug_handles.delete(h);
+        continue;
+      }
+      debug_box(obj);
+    }
+  });
 
-  private d_get(modelHash: number): d_model {
-    const cached = this.d_cache.get(modelHash);
+  function get_dims(model: number): model_dims {
+    const cached = dims_cache.get(model);
     if (cached) return cached;
 
-    const res: any = mp.game.gameplay.getModelDimensions(modelHash);
-
-    const dims: d_model = {
+    const res: any = mp.game.gameplay.getModelDimensions(model);
+    const dims: model_dims = {
       min: new mp.Vector3(res.min.x, res.min.y, res.min.z),
       max: new mp.Vector3(res.max.x, res.max.y, res.max.z),
     };
 
-    this.d_cache.set(modelHash, dims);
+    dims_cache.set(model, dims);
     return dims;
   }
 
-  public box(obj: ObjectMp): void {
-    if (!dev) return;
-    if (!mp.objects.exists(obj)) return;
-    if (!obj.handle) return;
-
-    const { min, max } = this.d_get(obj.model);
-
-    const local = [
+  function local_corners(min: Vector3, max: Vector3): Vector3[] {
+    return [
       new mp.Vector3(min.x, min.y, min.z),
       new mp.Vector3(max.x, min.y, min.z),
       new mp.Vector3(min.x, max.y, min.z),
@@ -41,49 +40,175 @@ class SGR {
       new mp.Vector3(min.x, max.y, max.z),
       new mp.Vector3(max.x, max.y, max.z),
     ];
+  }
 
-    const world = local.map(v =>
+  function world_corners(obj: ObjectMp): Vector3[] {
+    const { min, max } = get_dims(obj.model);
+    return local_corners(min, max).map(v =>
       mp.game.entity.getOffsetFromInWorldCoords(obj.handle, v.x, v.y, v.z)
     );
-    const d_bottom = world
-        .map((p, d_i) => ({ p, d_i }))
-        .sort((a, b) => a.p.z - b.p.z)
-        .slice(0, 4);
+  }
 
-    for (const { p } of d_bottom) {
-        const d_ground_z = mp.game.gameplay.getGroundZFor3dCoord(
-            p.x, p.y, p.z,
-            false, false
-        );
+  function bottom_idx(corners: Vector3[]): number[] {
+    return corners
+      .map((p, i) => ({ p, i }))
+      .sort((a, b) => a.p.z - b.p.z)
+      .slice(0, 4)
+      .map(v => v.i);
+  }
 
-        if (d_ground_z !== 0) {
-            mp.game.graphics.drawLine(
-                p.x, p.y, p.z,
-                p.x, p.y, d_ground_z,
-                0, 255, 0, 255
-            );
-        }
+  function ground_z(x: number, y: number, z_hint: number): number | null {
+    const z = mp.game.gameplay.getGroundZFor3dCoord(x, y, z_hint, false, false);
+    return z !== 0 ? z : null;
+  }
+
+  function quat_keep_yaw(yaw_deg: number, up: vec3): quat {
+    const yaw = sgr_math.deg2rad(yaw_deg);
+    const f0 = sgr_math.v3(Math.cos(yaw), Math.sin(yaw), 0);
+
+    let f = sgr_math.sub3(f0, sgr_math.mul3(up, sgr_math.dot3(f0, up)));
+    if (sgr_math.len3(f) < 1e-6) {
+      f = sgr_math.v3(-Math.sin(yaw), Math.cos(yaw), 0);
+      f = sgr_math.sub3(f, sgr_math.mul3(up, sgr_math.dot3(f, up)));
     }
-    for (const [a, b] of EDGES) {
-      const p1 = world[a];
-      const p2 = world[b];
+    f = sgr_math.norm3(f);
 
-      mp.game.graphics.drawLine(
-        p1.x, p1.y, p1.z,
-        p2.x, p2.y, p2.z,
-        255, 0, 0, 255
+    const r = sgr_math.norm3(sgr_math.cross3(f, up));
+    const f2 = sgr_math.norm3(sgr_math.cross3(up, r));
+    return sgr_math.mat3_to_quat(r, f2, up);
+  }
+
+  function settle_z(obj: ObjectMp): void {
+    const corners = world_corners(obj);
+    const idx = bottom_idx(corners);
+
+    let max_d = -Infinity;
+    let min_d = Infinity;
+
+    for (const i of idx) {
+      const p = corners[i];
+      const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint);
+      if (gz == null) continue;
+
+      const d = gz - p.z;
+      if (d > max_d) max_d = d;
+      if (d < min_d) min_d = d;
+    }
+
+    if (!isFinite(max_d) || !isFinite(min_d)) return;
+
+    let dz = 0;
+    if (max_d > 0) dz = max_d + sgr_settings.cfg.eps_z;
+    else if (min_d < -sgr_settings.cfg.eps_z) dz = min_d + sgr_settings.cfg.eps_z;
+
+    if (dz !== 0) {
+      obj.position = new mp.Vector3(
+        obj.position.x,
+        obj.position.y,
+        obj.position.z + dz
       );
+    }
+  }
+
+  function align(obj: ObjectMp): void {
+    const q_side = sgr_settings.cfg.lay_on_side
+      ? sgr_math.quat_axis_angle(sgr_math.v3(1, 0, 0), -90)
+      : sgr_math.quat_make();
+
+    for (let it = 0; it < sgr_settings.cfg.iters; it++) {
+      const corners = world_corners(obj);
+      const idx = bottom_idx(corners);
+
+      const samples: vec3[] = [];
+      for (const i of idx) {
+        const p = corners[i];
+        const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint);
+        if (gz == null) continue;
+        samples.push(sgr_math.v3(p.x, p.y, gz));
+      }
+      if (samples.length < 3) return;
+
+      const n = sgr_math.fit_plane_normal(samples);
+      if (!n) return;
+
+      const q_align = quat_keep_yaw(obj.rotation.z, n);
+      const q_final = sgr_math.quat_norm(
+        sgr_math.quat_mul(q_align, q_side)
+      );
+
+      mp.game.invoke(
+        "0x77B21BE7AC540F07",
+        obj.handle,
+        q_final.x,
+        q_final.y,
+        q_final.z,
+        q_final.w
+      );
+
+      settle_z(obj);
+    }
+  }
+
+  function debug_box(obj: ObjectMp): void {
+    if (!mp.objects.exists(obj) || !obj.handle) return;
+
+    const corners = world_corners(obj);
+
+    const bottom = corners
+      .map((p, i) => ({ p, i }))
+      .sort((a, b) => a.p.z - b.p.z)
+      .slice(0, 4);
+
+    for (const { p } of bottom) {
+      const gz = mp.game.gameplay.getGroundZFor3dCoord(
+        p.x,
+        p.y,
+        p.z,
+        false,
+        false
+      );
+      if (gz !== 0)
+        mp.game.graphics.drawLine(
+          p.x,
+          p.y,
+          p.z,
+          p.x,
+          p.y,
+          gz,
+          0,
+          255,
+          0,
+          255
+        );
+    }
+
+    for (const [a, b] of sgr_settings.edges) {
+      const p1 = corners[a];
+      const p2 = corners[b];
+      mp.game.graphics.drawLine(
+        p1.x,
+        p1.y,
+        p1.z,
+        p2.x,
+        p2.y,
+        p2.z,
+        255,
+        0,
+        0,
+        255
+      );
+    }
+  }
+
+  export function apply(obj: ObjectMp): void {
+    if (!mp.objects.exists(obj) || !obj.handle) return;
+
+    align(obj);
+
+    if (sgr_settings.cfg.debug) {
+      debug_handles.add(obj.handle);
     }
   }
 }
 
-const sgr = new SGR();
-
-mp.events.add("render", () => {
-  if (!dev) return;
-
-  mp.objects.forEach(obj => {
-    obj.rotation = new mp.Vector3(90, 0, 0);
-    sgr.box(obj);
-  });
-});
+global.sgr = sgr;
