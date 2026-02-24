@@ -19,7 +19,6 @@ namespace sgr_math {
         const l = Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w) || 1;
         return { x: q.x / l, y: q.y / l, z: q.z / l, w: q.w / l };
     };
-    // q = a*b => сначала b, потом a
     export const quat_mul = (a: quat, b: quat): quat =>
         quat_make(
             a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,

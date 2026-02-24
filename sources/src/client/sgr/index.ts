@@ -44,9 +44,33 @@ namespace sgr {
       .map(v => v.i);
   }
 
-  function ground_z(x: number, y: number, z_hint: number): number | null {
+  function raycast_ground(x: number,y: number,z_at_point: number,ignoreEntity?: number): ray_hit | null {
+    const up = sgr_settings.cfg.ray.up;
+    const down = sgr_settings.cfg.ray.down;
+
+    const start = new mp.Vector3(x, y, z_at_point + up);
+    const end = new mp.Vector3(x, y, z_at_point - down);
+
+    const hit: any = (mp as any).raycasting?.testPointToPoint
+      ? (mp as any).raycasting.testPointToPoint(start, end, ignoreEntity ?? 0, sgr_settings.cfg.ray.flags)
+      : null;
+
+    if (!hit || !hit.position) return null;
+
+    const z = hit.position.z;
+    if (!isFinite(z)) return null;
+
+    const n = hit.normal ? sgr_math.v3(hit.normal.x, hit.normal.y, hit.normal.z) : undefined;
+    return { z, n };
+  }
+
+  function ground_z(x: number, y: number, z_hint: number, ignoreEntity?: number): number | null {
+    const hit = raycast_ground(x, y, z_hint, ignoreEntity);
+    if (hit) return hit.z;
+
     const z = mp.game.gameplay.getGroundZFor3dCoord(x, y, z_hint, false, false);
-    return z !== 0 ? z : null;
+    if (!isFinite(z)) return null;
+    return z;
   }
 
   function quat_keep_yaw(yaw_deg: number, up: vec3): quat {
@@ -75,7 +99,7 @@ namespace sgr {
 
     for (const i of idx) {
       const p = corners[i];
-      const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint);
+      const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint, obj.handle);
       if (gz == null) continue;
       const d = gz - p.z;
       if (d > max_d) max_d = d;
@@ -94,6 +118,7 @@ namespace sgr {
   }
 
   function align(obj: ObjectMp, iters: number, lay_on_side: boolean): void {
+    const yaw0 = obj.rotation.z;
     const q_side = lay_on_side ? sgr_math.quat_axis_angle(sgr_math.v3(1, 0, 0), 90) : sgr_math.quat_make();
 
     for (let it = 0; it < iters; it++) {
@@ -103,7 +128,7 @@ namespace sgr {
       const samples: vec3[] = [];
       for (const i of idx) {
         const p = corners[i];
-        const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint);
+        const gz = ground_z(p.x, p.y, p.z + sgr_settings.cfg.z_hint, obj.handle);
         if (gz == null) continue;
         samples.push(sgr_math.v3(p.x, p.y, gz));
       }
@@ -112,11 +137,10 @@ namespace sgr {
       const n = sgr_math.fit_plane_normal(samples);
       if (!n) return;
 
-      const q_align = quat_keep_yaw(obj.rotation.z, n);
+      const q_align = quat_keep_yaw(yaw0, n);
       const q_final = sgr_math.quat_norm(sgr_math.quat_mul(q_align, q_side));
 
-      // SET_ENTITY_QUATERNION(entity, x, y, z, w)
-      mp.game.invoke("0x77B21BE7AC540F07", obj.handle, q_final.x, q_final.y, q_final.z, q_final.w);
+      mp.game.invoke("0x77B21BE7AC540F07", obj.handle, q_final.x, q_final.y, q_final.z, q_final.w); // SET_ENTITY_QUATERNION(entity, x, y, z, w)
       settle_z(obj);
     }
   }
@@ -133,8 +157,21 @@ namespace sgr {
       .slice(0, 4);
 
     for (const { p } of bottom) {
-      const gz = mp.game.gameplay.getGroundZFor3dCoord(p.x, p.y, p.z, false, false);
-      if (gz !== 0) mp.game.graphics.drawLine(p.x, p.y, p.z, p.x, p.y, gz, 0, 255, 0, 255);
+      const up = sgr_settings.cfg.ray.up;
+      const down = sgr_settings.cfg.ray.down;
+
+      const start = new mp.Vector3(p.x, p.y, p.z + up);
+      const end = new mp.Vector3(p.x, p.y, p.z - down);
+
+      const hit: any = (mp as any).raycasting?.testPointToPoint
+        ? (mp as any).raycasting.testPointToPoint(start, end, obj.handle, sgr_settings.cfg.ray.flags)
+        : null;
+
+      mp.game.graphics.drawLine(start.x, start.y, start.z, end.x, end.y, end.z, 0, 128, 255, 180);
+
+      if (hit?.position) {
+        mp.game.graphics.drawLine(p.x, p.y, p.z, hit.position.x, hit.position.y, hit.position.z, 0, 255, 0, 255);
+      }
     }
 
     for (const [a, b] of sgr_settings.edges) {
