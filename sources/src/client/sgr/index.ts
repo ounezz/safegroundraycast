@@ -117,7 +117,6 @@ namespace sgr {
 
       // SET_ENTITY_QUATERNION(entity, x, y, z, w)
       mp.game.invoke("0x77B21BE7AC540F07", obj.handle, q_final.x, q_final.y, q_final.z, q_final.w);
-
       settle_z(obj);
     }
   }

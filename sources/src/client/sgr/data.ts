@@ -1,11 +1,11 @@
 namespace sgr_settings {
   export const cfg = {
     debug: true, 
-    iters: 3,         
+    iters: 4,         
     lay_on_side: true,
     eps: 0.01,        
     z_hint: 200.0, 
-    min_samples: 3,  
+    min_samples: 4,  
   } as const;
 
   export const edges: Array<[number, number]> = [
