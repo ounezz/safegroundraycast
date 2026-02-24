@@ -44,7 +44,7 @@ sgr.apply(ObjectMp, ?lay_on_side, ?iterations);
 
 ## Configuration
 Main configuration is located in:
-`sgr/settings.cfg`
+`data.ts`
 
 Important options:
 
